@@ -22,3 +22,6 @@ Thumbs.db
 
 .wwebjs_auth
 .wwebjs_cache
+
+auth_states
+baileys_auth_info
