@@ -1,3 +1,5 @@
+const fs = require("fs");
+const path = require("path");
 const express = require("express");
 const bodyParser = require("body-parser");
 const {
@@ -47,6 +49,15 @@ async function initializeWhatsApp(userId) {
       } else {
         console.log(`${userId} - Connection closed. Logged out.`);
         delete clients[userId];
+        const authStatePath = path.join(`./auth_states/state_${userId}`);
+        fs.rmdir(authStatePath, { recursive: true }, (err) => {
+          if (err) {
+            console.error(`Failed to delete auth state for ${userId}:`, err);
+          }
+          console.log(
+            `Authentication state for ${userId} deleted successfully.`
+          );
+        });
       }
     }
     if (update.connection === "open") {
@@ -90,6 +101,41 @@ app.post("/send/:userId", async (req, res) => {
   } catch (error) {
     console.error(`Failed to send message for ${userId}:`, error);
     res.status(500).send("Failed to send messages.");
+  }
+});
+
+app.post("/logout/:userId", async (req, res) => {
+  const userId = req.params.userId;
+  const client = clients[userId];
+
+  if (!client) {
+    return res
+      .status(404)
+      .send("User is not logged in or session does not exist.");
+  }
+
+  try {
+    // Calling the logout method to properly close the session
+    await client.logout(); // This method will log out the user and invalidate the session on the server
+
+    // Clean up local resources
+    delete clients[userId]; // Remove the client from the local tracking object
+    console.log(`${userId} - Logged out and session terminated.`);
+
+    // Delete the user's authentication state files
+    const authStatePath = path.join(`./auth_states/state_${userId}`);
+    // const authStatePath = path.join(__dirname, `./auth_states/state_${userId}`);
+    fs.rmdir(authStatePath, { recursive: true }, (err) => {
+      if (err) {
+        console.error(`Failed to delete auth state for ${userId}:`, err);
+        return res.status(500).send("Failed to clean up auth state.");
+      }
+      console.log(`Authentication state for ${userId} deleted successfully.`);
+      res.send("Logged out and session cleaned up successfully.");
+    });
+  } catch (error) {
+    console.error(`Failed to logout ${userId}:`, error);
+    res.status(500).send("Failed to log out.");
   }
 });
 
